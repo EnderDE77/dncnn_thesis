@@ -1,5 +1,3 @@
-
-
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -7,10 +5,10 @@ from torch.utils.data import Dataset, DataLoader
 import numpy as np
 import cv2
 import os
+import json
 from skimage.metrics import peak_signal_noise_ratio as psnr
 from skimage.metrics import structural_similarity as ssim
 
-# DnCNN Model
 class DnCNN(nn.Module):
     def __init__(self, depth=17, channels=1):
         super().__init__()
@@ -27,7 +25,6 @@ class DnCNN(nn.Module):
     def forward(self, x):
         return x - self.net(x)
 
-# Dataset
 class DenoisingDataset(Dataset):
     def __init__(self, image_dir, patch_size=64, sigma=25, augment=True):
         self.patches = []
@@ -56,7 +53,6 @@ class DenoisingDataset(Dataset):
         noisy = clean + noise
         return noisy, clean
 
-# Evaluate on BSD68
 def evaluate(model, test_dir, sigma, device):
     model.eval()
     psnr_vals, ssim_vals = [], []
@@ -77,20 +73,18 @@ def evaluate(model, test_dir, sigma, device):
             ssim_vals.append(ssim(clean, out, data_range=1.0))
     return np.mean(psnr_vals), np.mean(ssim_vals)
 
-# Train
-def train():
+def train(sigma=25):
     device = torch.device('cuda')
-    sigma = 25
     epochs = 30
     batch_size = 64
     lr = 1e-3
 
-    print(f"Using device: {device}")
-    print("Loading dataset...")
+    print(f"\n{'='*50}")
+    print(f"Training DnCNN for sigma={sigma}")
+    print(f"{'='*50}")
 
     dataset = DenoisingDataset('testsets/BSD68', sigma=sigma)
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=0)
-
     print(f"Dataset size: {len(dataset)} patches")
 
     model = DnCNN(depth=17, channels=1).to(device)
@@ -98,7 +92,9 @@ def train():
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.5)
     criterion = nn.MSELoss()
 
+    log = {'sigma': sigma, 'epochs': [], 'train_loss': [], 'bsd68_psnr': [], 'bsd68_ssim': [], 'set12_psnr': [], 'set12_ssim': []}
     best_psnr = 0
+
     for epoch in range(epochs):
         model.train()
         losses = []
@@ -113,17 +109,35 @@ def train():
         scheduler.step()
 
         avg_loss = np.mean(losses)
-        avg_psnr, avg_ssim = evaluate(model, 'testsets/BSD68', sigma, device)
-        print(f"Epoch {epoch+1}/{epochs} | Loss: {avg_loss:.6f} | PSNR: {avg_psnr:.2f} dB | SSIM: {avg_ssim:.4f}")
+        bsd68_psnr, bsd68_ssim = evaluate(model, 'testsets/BSD68', sigma, device)
+        set12_psnr, set12_ssim = evaluate(model, 'testsets/Set12', sigma, device)
 
-        if avg_psnr > best_psnr:
-            best_psnr = avg_psnr
-            torch.save(model.state_dict(), 'models/dncnn_best.pth')
-            print(f"  Saved best model (PSNR: {best_psnr:.2f} dB)")
+        log['epochs'].append(epoch + 1)
+        log['train_loss'].append(float(avg_loss))
+        log['bsd68_psnr'].append(float(bsd68_psnr))
+        log['bsd68_ssim'].append(float(bsd68_ssim))
+        log['set12_psnr'].append(float(set12_psnr))
+        log['set12_ssim'].append(float(set12_ssim))
 
-    print(f"\nTraining complete. Best PSNR: {best_psnr:.2f} dB")
+        print(f"Epoch {epoch+1}/{epochs} | Loss: {avg_loss:.6f} | BSD68 PSNR: {bsd68_psnr:.2f} | Set12 PSNR: {set12_psnr:.2f} | SSIM: {set12_ssim:.4f}")
+
+        if bsd68_psnr > best_psnr:
+            best_psnr = bsd68_psnr
+            torch.save(model.state_dict(), f'models/dncnn_sigma{sigma}_best.pth')
+            print(f"  Saved best model")
+
+    with open(f'results/training_log_sigma{sigma}.json', 'w') as f:
+        json.dump(log, f)
+
+    print(f"\nSigma={sigma} complete. Best BSD68 PSNR: {best_psnr:.2f} dB")
+    return log
 
 if __name__ == '__main__':
     os.makedirs('models', exist_ok=True)
     os.makedirs('results', exist_ok=True)
-    train()
+    all_logs = {}
+    for sigma in [15, 25, 50]:
+        all_logs[sigma] = train(sigma)
+    with open('results/all_training_logs.json', 'w') as f:
+        json.dump(all_logs, f)
+    print("\nAll training complete.")

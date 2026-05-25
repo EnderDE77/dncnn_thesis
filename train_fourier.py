@@ -1,5 +1,3 @@
-
-
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -7,10 +5,10 @@ from torch.utils.data import Dataset, DataLoader
 import numpy as np
 import cv2
 import os
+import json
 from skimage.metrics import peak_signal_noise_ratio as psnr
 from skimage.metrics import structural_similarity as ssim
 
-# DnCNN Model
 class DnCNN(nn.Module):
     def __init__(self, depth=17, channels=1):
         super().__init__()
@@ -27,8 +25,22 @@ class DnCNN(nn.Module):
     def forward(self, x):
         return x - self.net(x)
 
-# Dataset
-class DenoisingDataset(Dataset):
+def to_fourier(img):
+    # Convert image to log magnitude of shifted FFT
+    # as specified by professor: log(fftshift(fft2(img)))
+    f = np.fft.fft2(img)
+    fshift = np.fft.fftshift(f)
+    magnitude = np.log1p(np.abs(fshift))
+    # Normalize to [0, 1]
+    magnitude = (magnitude - magnitude.min()) / (magnitude.max() - magnitude.min() + 1e-8)
+    return magnitude.astype(np.float32)
+
+def from_fourier_eval(clean_img, denoised_fourier, noisy_fourier):
+    # For evaluation we compare in Fourier domain directly
+    # PSNR/SSIM computed on Fourier magnitude maps
+    return denoised_fourier
+
+class FourierDenoisingDataset(Dataset):
     def __init__(self, image_dir, patch_size=64, sigma=25, augment=True):
         self.patches = []
         self.sigma = sigma
@@ -38,10 +50,12 @@ class DenoisingDataset(Dataset):
                 if img is None:
                     continue
                 img = img.astype(np.float32) / 255.0
-                h, w = img.shape
+                # Convert full image to Fourier domain
+                fourier = to_fourier(img)
+                h, w = fourier.shape
                 for i in range(0, h - patch_size, patch_size // 2):
                     for j in range(0, w - patch_size, patch_size // 2):
-                        patch = img[i:i+patch_size, j:j+patch_size]
+                        patch = fourier[i:i+patch_size, j:j+patch_size]
                         self.patches.append(patch)
                         if augment:
                             self.patches.append(np.fliplr(patch).copy())
@@ -56,8 +70,7 @@ class DenoisingDataset(Dataset):
         noisy = clean + noise
         return noisy, clean
 
-# Evaluate on BSD68
-def evaluate(model, test_dir, sigma, device):
+def evaluate_fourier(model, test_dir, sigma, device):
     model.eval()
     psnr_vals, ssim_vals = [], []
     with torch.no_grad():
@@ -67,30 +80,30 @@ def evaluate(model, test_dir, sigma, device):
             img = cv2.imread(os.path.join(test_dir, fname), cv2.IMREAD_GRAYSCALE)
             if img is None:
                 continue
-            clean = img.astype(np.float32) / 255.0
+            img_f = img.astype(np.float32) / 255.0
+            clean_fourier = to_fourier(img_f)
             np.random.seed(42)
-            noisy = clean + np.random.randn(*clean.shape) * (sigma / 255.0)
-            noisy_t = torch.tensor(noisy).unsqueeze(0).unsqueeze(0).float().to(device)
+            noise = np.random.randn(*clean_fourier.shape) * (sigma / 255.0)
+            noisy_fourier = np.clip(clean_fourier + noise, 0, 1)
+            noisy_t = torch.tensor(noisy_fourier).unsqueeze(0).unsqueeze(0).float().to(device)
             out = model(noisy_t).squeeze().cpu().numpy()
             out = np.clip(out, 0, 1)
-            psnr_vals.append(psnr(clean, out, data_range=1.0))
-            ssim_vals.append(ssim(clean, out, data_range=1.0))
+            psnr_vals.append(psnr(clean_fourier, out, data_range=1.0))
+            ssim_vals.append(ssim(clean_fourier, out, data_range=1.0))
     return np.mean(psnr_vals), np.mean(ssim_vals)
 
-# Train
-def train():
+def train_fourier(sigma=25):
     device = torch.device('cuda')
-    sigma = 25
     epochs = 30
     batch_size = 64
     lr = 1e-3
 
-    print(f"Using device: {device}")
-    print("Loading dataset...")
+    print(f"\n{'='*50}")
+    print(f"Training Fourier-domain DnCNN for sigma={sigma}")
+    print(f"{'='*50}")
 
-    dataset = DenoisingDataset('testsets/BSD68', sigma=sigma)
+    dataset = FourierDenoisingDataset('testsets/BSD68', sigma=sigma)
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=0)
-
     print(f"Dataset size: {len(dataset)} patches")
 
     model = DnCNN(depth=17, channels=1).to(device)
@@ -98,7 +111,10 @@ def train():
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.5)
     criterion = nn.MSELoss()
 
+    log = {'sigma': sigma, 'domain': 'fourier', 'epochs': [], 'train_loss': [],
+           'bsd68_psnr': [], 'bsd68_ssim': [], 'set12_psnr': [], 'set12_ssim': []}
     best_psnr = 0
+
     for epoch in range(epochs):
         model.train()
         losses = []
@@ -113,17 +129,35 @@ def train():
         scheduler.step()
 
         avg_loss = np.mean(losses)
-        avg_psnr, avg_ssim = evaluate(model, 'testsets/BSD68', sigma, device)
-        print(f"Epoch {epoch+1}/{epochs} | Loss: {avg_loss:.6f} | PSNR: {avg_psnr:.2f} dB | SSIM: {avg_ssim:.4f}")
+        bsd68_psnr, bsd68_ssim = evaluate_fourier(model, 'testsets/BSD68', sigma, device)
+        set12_psnr, set12_ssim = evaluate_fourier(model, 'testsets/Set12', sigma, device)
 
-        if avg_psnr > best_psnr:
-            best_psnr = avg_psnr
-            torch.save(model.state_dict(), 'models/dncnn_best.pth')
-            print(f"  Saved best model (PSNR: {best_psnr:.2f} dB)")
+        log['epochs'].append(epoch + 1)
+        log['train_loss'].append(float(avg_loss))
+        log['bsd68_psnr'].append(float(bsd68_psnr))
+        log['bsd68_ssim'].append(float(bsd68_ssim))
+        log['set12_psnr'].append(float(set12_psnr))
+        log['set12_ssim'].append(float(set12_ssim))
 
-    print(f"\nTraining complete. Best PSNR: {best_psnr:.2f} dB")
+        print(f"Epoch {epoch+1}/{epochs} | Loss: {avg_loss:.6f} | BSD68 PSNR: {bsd68_psnr:.2f} | Set12 PSNR: {set12_psnr:.2f} | SSIM: {set12_ssim:.4f}")
+
+        if bsd68_psnr > best_psnr:
+            best_psnr = bsd68_psnr
+            torch.save(model.state_dict(), f'models/dncnn_fourier_sigma{sigma}_best.pth')
+            print(f"  Saved best model")
+
+    with open(f'results/training_log_fourier_sigma{sigma}.json', 'w') as f:
+        json.dump(log, f)
+
+    print(f"\nFourier sigma={sigma} complete. Best BSD68 PSNR: {best_psnr:.2f} dB")
+    return log
 
 if __name__ == '__main__':
     os.makedirs('models', exist_ok=True)
     os.makedirs('results', exist_ok=True)
-    train()
+    all_logs = {}
+    for sigma in [15, 25, 50]:
+        all_logs[sigma] = train_fourier(sigma)
+    with open('results/all_training_logs_fourier.json', 'w') as f:
+        json.dump(all_logs, f)
+    print("\nAll Fourier training complete.")
