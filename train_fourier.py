@@ -152,12 +152,15 @@ def train_fourier(sigma=25):
     print(f"\nFourier sigma={sigma} complete. Best BSD68 PSNR: {best_psnr:.2f} dB")
     return log
 
-if __name__ == '__main__':
+def run():
     os.makedirs('models', exist_ok=True)
     os.makedirs('results', exist_ok=True)
     all_logs = {}
-    for sigma in [15, 25, 50]:
+    for sigma in [10]:
         all_logs[sigma] = train_fourier(sigma)
     with open('results/all_training_logs_fourier.json', 'w') as f:
         json.dump(all_logs, f)
     print("\nAll Fourier training complete.")
+
+if __name__ == '__main__':
+    run()
