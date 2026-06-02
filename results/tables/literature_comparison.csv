@@ -1,1 +1,6 @@
 Method,Sigma=15 PSNR,Sigma=25 PSNR,Sigma=50 PSNR,Sigma=100 PSNR,Source
+BM3D,31.73,28.61,25.62,0.00,Literature
+DnCNN,31.73,29.23,26.23,0.00,Literature
+FFDNet,31.63,29.19,26.05,0.00,Literature
+Ours (Image),31.68,29.18,26.17,23.77,This work
+Ours (Fourier),51.84,50.30,44.61,42.08,This work

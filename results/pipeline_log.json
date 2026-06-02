@@ -1,0 +1,12 @@
+{
+  "started": "2026-06-02 19:47:43",
+  "total_runtime_hours": 0.0,
+  "scripts": [
+    {
+      "script": "generate_all_plots.py",
+      "status": "FAILED",
+      "runtime_minutes": 0.18,
+      "returncode": 1
+    }
+  ]
+}
