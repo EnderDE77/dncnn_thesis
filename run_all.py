@@ -36,8 +36,8 @@ def run_script(script_name):
     print(f"\n{status}: {script_name}")
     print(f"Runtime: {elapsed/60:.1f} minutes")
     notify(
-      f"{result['status']}: {script_name}",
-      f"Runtime: {result['runtime_minutes']:.1f} min"
+      f"{status}: {script_name}",
+      f"Runtime: {elapsed/60:.1f} min"
   )
     return {
         'script': script_name,

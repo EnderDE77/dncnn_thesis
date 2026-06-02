@@ -250,6 +250,6 @@ if __name__ == '__main__':
     notify(
     "Pipeline Complete!",
     f"All 48 experiments done\n"
-    f"Total time: {total_time/3600:.2f} hours\n"
+    f"Total time: {elapsed:.2f} hours\n"
     f"Check results/all_results.json"
     )
