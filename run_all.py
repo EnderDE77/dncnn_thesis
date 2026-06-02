@@ -59,9 +59,9 @@ if __name__ == '__main__':
     print("\nInstalling dependencies...")
     subprocess.run(['pip', 'install', 'python-docx', '-q'])
 
-    # Step 2 — Run all training experiments
-    result = run_script('train_all.py')
-    run_log.append(result)
+    # # Step 2 — Run all training experiments
+    # result = run_script('train_all.py')
+    # run_log.append(result)
 
     # Step 3 — Generate all plots and tables
     result = run_script('generate_all_plots.py')

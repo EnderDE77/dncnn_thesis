@@ -472,7 +472,7 @@ def generate_literature_comparison_csv(results):
         writer = csv.writer(f)
         writer.writerow([
             'Method', 'Sigma=15 PSNR',
-            'Sigma=25 PSNR', 'Sigma=50 PSNR', 'Source'
+            'Sigma=25 PSNR', 'Sigma=50 PSNR', 'Sigma=100 PSNR', 'Source'
         ])
         for method, vals in PUBLISHED.items():
             writer.writerow([
@@ -480,12 +480,13 @@ def generate_literature_comparison_csv(results):
                 f"{vals[15]:.2f}",
                 f"{vals[25]:.2f}",
                 f"{vals[50]:.2f}",
+                f"{vals[100]:.2f}",
                 'Literature'
             ])
         for domain in ['image', 'fourier_complex']:
             row = [
                 f"Ours ({'Image' if domain == 'image' else 'Fourier'})"]
-            for sigma in [15, 25, 50]:
+            for sigma in [15, 25, 50, 100]:
                 subset = filter_results(
                     results, sigma=sigma, domain=domain)
                 if subset:
@@ -527,7 +528,8 @@ def generate_word_tables(results):
         r[1].text = f"{vals[15]:.2f}"
         r[2].text = f"{vals[25]:.2f}"
         r[3].text = f"{vals[50]:.2f}"
-        r[4].text = 'Literature'
+        r[3].text = f"{vals[100]:.2f}"
+        r[5].text = 'Literature'
 
     for domain in ['image', 'fourier_complex']:
         r = t1.add_row().cells
