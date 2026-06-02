@@ -70,8 +70,8 @@ if __name__ == '__main__':
     # Step 4 — Git commit
     print("\nCommitting to GitHub...")
     os.system('git add .')
-    os.system('git commit -m "Full experiment pipeline complete"')
-    os.system('git push')
+    os.system('git commit -m "Bugfix"')
+    # os.system('git push')
 
     # Step 5 — Save pipeline log
     total_time = time.time() - pipeline_start

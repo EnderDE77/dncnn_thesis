@@ -528,7 +528,7 @@ def generate_word_tables(results):
         r[1].text = f"{vals[15]:.2f}"
         r[2].text = f"{vals[25]:.2f}"
         r[3].text = f"{vals[50]:.2f}"
-        r[3].text = f"{vals[100]:.2f}"
+        r[4].text = f"{vals[100]:.2f}"
         r[5].text = 'Literature'
 
     for domain in ['image', 'fourier_complex']:
