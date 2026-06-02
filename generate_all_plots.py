@@ -513,7 +513,7 @@ def generate_word_tables(results):
     # Table 1 — Literature comparison
     doc.add_heading('Table 1: Comparison with Published Benchmarks',
                     level=2)
-    t1 = doc.add_table(rows=1, cols=5)
+    t1 = doc.add_table(rows=1, cols=6)
     t1.style = 'Table Grid'
     h = t1.rows[0].cells
     for i, text in enumerate([
