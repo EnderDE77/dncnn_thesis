@@ -35,7 +35,7 @@ def get_all_configs():
 
 # Published benchmarks for comparison
 PUBLISHED_BENCHMARKS = {
-    'BM3D': {'sigma15': 31.73, 'sigma25': 28.61, 'sigma50': 25.62, 'sigma100':0},
-    'DnCNN': {'sigma15': 31.73, 'sigma25': 29.23, 'sigma50': 26.23, 'sigma100':0},
-    'FFDNet': {'sigma15': 31.63, 'sigma25': 29.19, 'sigma50': 26.05, 'sigma100':0},
+    'BM3D': {'sigma15': 31.73, 'sigma25': 28.61, 'sigma50': 25.62},
+    'DnCNN': {'sigma15': 31.73, 'sigma25': 29.23, 'sigma50': 26.23},
+    'FFDNet': {'sigma15': 31.63, 'sigma25': 29.19, 'sigma50': 26.05},
 }

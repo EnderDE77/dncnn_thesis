@@ -20,9 +20,9 @@ except ImportError:
     CSV_AVAILABLE = False
 
 PUBLISHED = {
-    'BM3D':   {15: 31.73, 25: 28.61, 50: 25.62, 100:0},
-    'DnCNN':  {15: 31.73, 25: 29.23, 50: 26.23, 100:0},
-    'FFDNet': {15: 31.63, 25: 29.19, 50: 26.05, 100:0},
+    'BM3D':   {15: 31.73, 25: 28.61, 50: 25.62},
+    'DnCNN':  {15: 31.73, 25: 29.23, 50: 26.23},
+    'FFDNet': {15: 31.63, 25: 29.19, 50: 26.05},
 }
 
 METRICS = ['psnr', 'ssim', 'rmse', 'mae']
@@ -480,7 +480,6 @@ def generate_literature_comparison_csv(results):
                 f"{vals[15]:.2f}",
                 f"{vals[25]:.2f}",
                 f"{vals[50]:.2f}",
-                f"{vals[100]:.2f}",
                 'Literature'
             ])
         for domain in ['image', 'fourier_complex']:
@@ -513,7 +512,7 @@ def generate_word_tables(results):
     # Table 1 — Literature comparison
     doc.add_heading('Table 1: Comparison with Published Benchmarks',
                     level=2)
-    t1 = doc.add_table(rows=1, cols=6)
+    t1 = doc.add_table(rows=1, cols=5)
     t1.style = 'Table Grid'
     h = t1.rows[0].cells
     for i, text in enumerate([
@@ -528,8 +527,7 @@ def generate_word_tables(results):
         r[1].text = f"{vals[15]:.2f}"
         r[2].text = f"{vals[25]:.2f}"
         r[3].text = f"{vals[50]:.2f}"
-        r[4].text = f"{vals[100]:.2f}"
-        r[5].text = 'Literature'
+        r[4].text = 'Literature'
 
     for domain in ['image', 'fourier_complex']:
         r = t1.add_row().cells
