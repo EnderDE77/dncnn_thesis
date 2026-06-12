@@ -78,49 +78,55 @@ def short_name(config_name):
     return ' '.join(short)
 
 # ─── 1. Training curves per metric ───────────────────────────────────────────
-
 def plot_training_curves_by_sigma(results):
-    for sigma in [15, 25, 50]:
+    plot_metrics = ['train_loss', 'val_psnr', 'val_ssim',
+                     'val_rmse', 'val_mae', 'set12_psnr']
+    plot_labels = ['Training Loss (MSE)', 'Validation PSNR (dB)',
+                   'Validation SSIM', 'Validation RMSE',
+                   'Validation MAE', 'Set12 PSNR (dB)']
+
+    for sigma in [15, 25, 50, 100]:
         subset = filter_results(results, sigma=sigma)
         if not subset:
             continue
 
-        fig, axes = plt.subplots(2, 3, figsize=(18, 10))
-        axes = axes.flatten()
+        # Get top 3 from each domain separately
+        image_subset = filter_results(results, sigma=sigma, domain='image')
+        fourier_subset = filter_results(results, sigma=sigma, domain='fourier_complex')
 
-        plot_metrics = ['train_loss', 'val_psnr',
-                        'val_ssim', 'val_rmse',
-                        'val_mae', 'set12_psnr']
-        plot_labels  = ['Train Loss', 'Val PSNR',
-                        'Val SSIM',  'Val RMSE',
-                        'Val MAE',   'Set12 PSNR']
+        top_image = sorted(
+            image_subset.items(),
+            key=lambda x: x[1].get('final_set12', {}).get('psnr', 0),
+            reverse=True
+        )[:3]
 
-        colors = plt.cm.tab20(np.linspace(0, 1, len(subset)))
+        top_fourier = sorted(
+            fourier_subset.items(),
+            key=lambda x: x[1].get('final_set12', {}).get('psnr', 0),
+            reverse=True
+        )[:3]
 
-        for idx, (metric, label) in enumerate(
-                zip(plot_metrics, plot_labels)):
-            ax = axes[idx]
-            for (name, log), color in zip(subset.items(), colors):
+        combined = top_image + top_fourier
+        colors = (['steelblue', 'royalblue', 'navy'] +
+                  ['darkorange', 'orangered', 'firebrick'])
+
+        for metric, label in zip(plot_metrics, plot_labels):
+            fig, ax = plt.subplots(figsize=(10, 6))
+            for (name, log), color in zip(combined, colors):
                 if metric in log:
                     ax.plot(log['epochs'], log[metric],
-                            color=color,
-                            label=short_name(name),
-                            linewidth=1.2)
+                            color=color, label=short_name(name),
+                            linewidth=1.5)
             ax.set_xlabel('Epoch')
             ax.set_ylabel(label)
-            ax.set_title(label)
+            ax.set_title(f'{label} — $\\sigma$={sigma} (Top 3 per Domain)')
+            ax.legend(fontsize=9, loc='best')
             ax.grid(True, alpha=0.3)
-            if idx == 0:
-                ax.legend(fontsize=6, ncol=2,
-                          loc='upper right')
-
-        fig.suptitle(f'Training Curves — σ={sigma} '
-                     f'(All Combinations)', fontsize=14)
-        plt.tight_layout()
-        path = f'results/plots/curves_sigma{sigma}.png'
-        plt.savefig(path, dpi=150, bbox_inches='tight')
-        plt.close()
-        print(f"Saved: {path}")
+            plt.tight_layout()
+            path = f'results/plots/split_{metric}_sigma{sigma}.png'
+            plt.savefig(path, dpi=150, bbox_inches='tight')
+            plt.close()
+            print(f"Saved: {path}")
 
 def plot_training_curves_by_domain(results):
     for domain in ['image', 'fourier_complex']:
@@ -654,6 +660,55 @@ def print_summary(results):
               f"{log.get('total_runtime_minutes', 0):>8.1f}m")
     print("="*80)
 
+def plot_kernel_comparison(results):
+    for sigma in [15, 25, 50, 100]:
+        for domain in ['image', 'fourier_complex']:
+            subset = filter_results(results, sigma=sigma, domain=domain)
+            if not subset:
+                continue
+
+            # Group by kernel size, average across activation/batch
+            k3_psnr, k5_psnr = [], []
+            k3_ssim, k5_ssim = [], []
+            for name, log in subset.items():
+                fs = log.get('final_set12', {})
+                if log.get('kernel_size') == 3:
+                    k3_psnr.append(fs.get('psnr', 0))
+                    k3_ssim.append(fs.get('ssim', 0))
+                elif log.get('kernel_size') == 5:
+                    k5_psnr.append(fs.get('psnr', 0))
+                    k5_ssim.append(fs.get('ssim', 0))
+
+            fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+
+            # PSNR comparison
+            ax = axes[0]
+            data = [k3_psnr, k5_psnr]
+            bp = ax.boxplot(data, labels=['3x3', '5x5'], patch_artist=True)
+            for patch, color in zip(bp['boxes'], ['steelblue', 'darkorange']):
+                patch.set_facecolor(color)
+            ax.set_ylabel('Set12 PSNR (dB)')
+            ax.set_title('PSNR by Kernel Size')
+            ax.grid(True, axis='y', alpha=0.3)
+
+            # SSIM comparison
+            ax = axes[1]
+            data = [k3_ssim, k5_ssim]
+            bp = ax.boxplot(data, labels=['3x3', '5x5'], patch_artist=True)
+            for patch, color in zip(bp['boxes'], ['steelblue', 'darkorange']):
+                patch.set_facecolor(color)
+            ax.set_ylabel('Set12 SSIM')
+            ax.set_title('SSIM by Kernel Size')
+            ax.grid(True, axis='y', alpha=0.3)
+
+            domain_label = 'Image' if domain == 'image' else 'Fourier Complex'
+            fig.suptitle(f'Kernel Size Comparison — $\\sigma$={sigma}, {domain_label}')
+            plt.tight_layout()
+            path = f'results/plots/kernel_compare_sigma{sigma}_{domain}.png'
+            plt.savefig(path, dpi=150, bbox_inches='tight')
+            plt.close()
+            print(f"Saved: {path}")
+
 # ─── Main ─────────────────────────────────────────────────────────────────────
 
 if __name__ == '__main__':
@@ -683,6 +738,7 @@ if __name__ == '__main__':
 
         print("Generating batch size effect charts...")
         plot_batch_size_effect(results)
+        plot_kernel_comparison(results)
 
         print("Generating CSV tables...")
         generate_summary_csv(results)
