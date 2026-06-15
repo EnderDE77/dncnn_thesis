@@ -1,0 +1,18 @@
+{
+  "started": "2026-06-02 19:53:17",
+  "total_runtime_hours": 88.7,
+  "scripts": [
+    {
+      "script": "train_all.py",
+      "status": "SUCCESS",
+      "runtime_minutes": 5324.8,
+      "returncode": 0
+    },
+    {
+      "script": "generate_all_plots.py",
+      "status": "SUCCESS",
+      "runtime_minutes": 0.2,
+      "returncode": 0
+    }
+  ]
+}
