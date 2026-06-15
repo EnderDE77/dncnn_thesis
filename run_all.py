@@ -67,13 +67,17 @@ if __name__ == '__main__':
     result = run_script('generate_all_plots.py')
     run_log.append(result)
 
-    # Step 4 — Git commit
+    # Step 4 — Generate csv tables
+    result = run_script('generate_all_results_csvs.py')
+    run_log.append(result)
+
+    # Step 5 — Git commit
     print("\nCommitting to GitHub...")
     os.system('git add .')
     os.system('git commit -m "Bugfix"')
     os.system('git push')
 
-    # Step 5 — Save pipeline log
+    # Step 6 — Save pipeline log
     total_time = time.time() - pipeline_start
     pipeline_summary = {
         'started': time.strftime('%Y-%m-%d %H:%M:%S'),
