@@ -124,7 +124,7 @@ def plot_training_curves_by_sigma(results):
             ax.grid(True, alpha=0.3)
             plt.tight_layout()
             path = f'results/plots/split_{metric}_sigma{sigma}.png'
-            plt.savefig(path, dpi=150, bbox_inches='tight')
+            plt.savefig(path, dpi=300, bbox_inches='tight')
             plt.close()
             print(f"Saved: {path}")
 
@@ -168,7 +168,7 @@ def plot_training_curves_by_domain(results):
         plt.tight_layout()
         path = (f'results/plots/'
                 f'curves_{domain}.png')
-        plt.savefig(path, dpi=150, bbox_inches='tight')
+        plt.savefig(path, dpi=300, bbox_inches='tight')
         plt.close()
         print(f"Saved: {path}")
 
@@ -233,118 +233,103 @@ def plot_best_per_combination(results):
             plt.tight_layout()
             path = (f'results/plots/'
                     f'bars_sigma{sigma}_{domain}.png')
-            plt.savefig(path, dpi=150, bbox_inches='tight')
+            plt.savefig(path, dpi=300, bbox_inches='tight')
             plt.close()
             print(f"Saved: {path}")
 
 def plot_domain_comparison(results):
-    """Image vs Fourier for best config per sigma."""
-    for sigma in [15, 25, 50]:
-        img_sub = filter_results(
-            results, sigma=sigma, domain='image')
-        fft_sub = filter_results(
-            results, sigma=sigma, domain='fourier_complex')
+    for sigma in [15, 25, 50, 100]:
+        img_sub = filter_results(results, sigma=sigma, domain='image')
+        fft_sub = filter_results(results, sigma=sigma, domain='fourier_complex')
         if not img_sub or not fft_sub:
             continue
 
-        # Best of each domain by Set12 PSNR
-        best_img = max(
-            img_sub.items(),
-            key=lambda x: x[1].get(
-                'final_set12', {}).get('psnr', 0))
-        best_fft = max(
-            fft_sub.items(),
-            key=lambda x: x[1].get(
-                'final_set12', {}).get('psnr', 0))
+        best_img = max(img_sub.items(),
+                      key=lambda x: x[1].get('final_set12', {}).get('psnr', 0))
+        best_fft = max(fft_sub.items(),
+                      key=lambda x: x[1].get('final_set12', {}).get('psnr', 0))
 
         metrics = ['psnr', 'ssim', 'rmse', 'mae']
-        labels  = ['PSNR (dB)', 'SSIM', 'RMSE', 'MAE']
-        img_vals = [best_img[1]['final_set12'].get(m, 0)
-                    for m in metrics]
-        fft_vals = [best_fft[1]['final_set12'].get(m, 0)
-                    for m in metrics]
+        labels = ['PSNR (dB)', 'SSIM (×10)', 'RMSE (×1000)', 'MAE (×1000)']
+        multipliers = [1, 10, 1000, 1000]
 
-        x = np.arange(len(metrics))
-        fig, ax = plt.subplots(figsize=(10, 6))
+        img_raw = [best_img[1]['final_set12'].get(m, 0) for m in metrics]
+        fft_raw = [best_fft[1]['final_set12'].get(m, 0) for m in metrics]
+
+        img_vals = [v * m for v, m in zip(img_raw, multipliers)]
+        fft_vals = [v * m for v, m in zip(fft_raw, multipliers)]
+
+        x = np.arange(len(labels))
         w = 0.35
+
+        fig, ax = plt.subplots(figsize=(10, 6))
         bars1 = ax.bar(x - w/2, img_vals, w,
-                       label='Image Domain', color='steelblue')
+                    label='Image Domain', color='steelblue')
         bars2 = ax.bar(x + w/2, fft_vals, w,
-                       label='Fourier Complex', color='darkorange')
+                    label='Fourier Complex', color='darkorange')
+
         ax.set_xticks(x)
         ax.set_xticklabels(labels)
-        ax.set_title(f'Best Image vs Fourier — σ={sigma} '
-                     f'(Set12)')
+        ax.set_title(f'Best Image vs Fourier Domain — $\\sigma$={sigma} (Set12)')
         ax.legend()
         ax.grid(True, axis='y', alpha=0.3)
-        for bar in bars1 + bars2:
+
+        for bar in bars1:
             h = bar.get_height()
             ax.text(bar.get_x() + bar.get_width()/2,
-                    h * 1.01, f'{h:.3f}',
+                    h * 1.01, f'{h:.2f}',
                     ha='center', va='bottom', fontsize=8)
+        for bar in bars2:
+            h = bar.get_height()
+            ax.text(bar.get_x() + bar.get_width()/2,
+                    h * 1.01, f'{h:.2f}',
+                    ha='center', va='bottom', fontsize=8)
+
         plt.tight_layout()
         path = f'results/plots/domain_compare_sigma{sigma}.png'
-        plt.savefig(path, dpi=150, bbox_inches='tight')
+        plt.savefig(path, dpi=300, bbox_inches='tight')
         plt.close()
         print(f"Saved: {path}")
 
 def plot_literature_comparison(results):
-    """Compare best results vs published benchmarks."""
-    fig, axes = plt.subplots(1, 3, figsize=(15, 6))
-
-    for idx, sigma in enumerate([15, 25, 50]):
-        ax = axes[idx]
+    for sigma in [15, 25, 50]:
+        fig, ax = plt.subplots(figsize=(10, 6))
         methods, psnrs = [], []
 
         # Published baselines
         for method, vals in PUBLISHED.items():
-            methods.append(method)
-            psnrs.append(vals[sigma])
+            if sigma in vals:
+                methods.append(method)
+                psnrs.append(vals[sigma])
 
-        # Our best image domain result
-        img_sub = filter_results(
-            results, sigma=sigma, domain='image')
+        # Our best image domain
+        img_sub = filter_results(results, sigma=sigma, domain='image')
         if img_sub:
-            best = max(
-                img_sub.items(),
-                key=lambda x: x[1].get(
-                    'final_val', {}).get('psnr', 0))
+            best = max(img_sub.items(),
+                      key=lambda x: x[1].get('final_val', {}).get('psnr', 0))
             methods.append('Ours (Image)')
-            psnrs.append(
-                best[1].get('final_val', {}).get('psnr', 0))
+            psnrs.append(best[1].get('final_val', {}).get('psnr', 0))
 
-        # Our best Fourier result
-        fft_sub = filter_results(
-            results, sigma=sigma, domain='fourier_complex')
-        if fft_sub:
-            best = max(
-                fft_sub.items(),
-                key=lambda x: x[1].get(
-                    'final_val', {}).get('psnr', 0))
-            methods.append('Ours (Fourier)')
-            psnrs.append(
-                best[1].get('final_val', {}).get('psnr', 0))
+        colors = ['gray'] * len(PUBLISHED) + ['steelblue']
+        bars = ax.bar(methods, psnrs, color=colors[:len(methods)], width=0.5)
 
-        colors = (['gray'] * len(PUBLISHED) +
-                  ['steelblue', 'darkorange'])
-        bars = ax.bar(methods, psnrs, color=colors[:len(methods)])
-        ax.set_title(f'σ={sigma}')
-        ax.set_ylabel('BSD68 PSNR (dB)')
-        ax.set_xticklabels(methods, rotation=20, ha='right')
+        ax.set_ylabel('BSD68 PSNR (dB)', fontsize=12)
+        ax.set_title(f'Comparison with Published Benchmarks — $\\sigma$={sigma}',
+                    fontsize=13)
+        ax.set_xticklabels(methods, fontsize=11)
         ax.grid(True, axis='y', alpha=0.3)
+
         for bar in bars:
             h = bar.get_height()
             ax.text(bar.get_x() + bar.get_width()/2,
-                    h + 0.05, f'{h:.2f}',
-                    ha='center', va='bottom', fontsize=8)
+                   h + 0.05, f'{h:.2f}',
+                   ha='center', va='bottom', fontsize=10)
 
-    fig.suptitle('Comparison with Published Benchmarks — '
-                 'BSD68 PSNR (dB)', fontsize=13)
-    plt.tight_layout()
-    plt.savefig('results/plots/literature_comparison.png',
-                dpi=150, bbox_inches='tight')
-    plt.close()
-    print("Saved: results/plots/literature_comparison.png")
+        plt.tight_layout()
+        path = f'results/plots/literature_comparison_sigma{sigma}.png'
+        plt.savefig(path, dpi=300, bbox_inches='tight')
+        plt.close()
+        print(f"Saved: {path}")
 
 def plot_batch_size_effect(results):
     """Show effect of batch size on PSNR per domain."""
@@ -391,7 +376,7 @@ def plot_batch_size_effect(results):
                 plt.tight_layout()
                 path = (f'results/plots/'
                         f'batchsize_sigma{sigma}_{domain}.png')
-                plt.savefig(path, dpi=150, bbox_inches='tight')
+                plt.savefig(path, dpi=300, bbox_inches='tight')
                 plt.close()
                 print(f"Saved: {path}")
 
@@ -705,7 +690,7 @@ def plot_kernel_comparison(results):
             fig.suptitle(f'Kernel Size Comparison — $\\sigma$={sigma}, {domain_label}')
             plt.tight_layout()
             path = f'results/plots/kernel_compare_sigma{sigma}_{domain}.png'
-            plt.savefig(path, dpi=150, bbox_inches='tight')
+            plt.savefig(path, dpi=300, bbox_inches='tight')
             plt.close()
             print(f"Saved: {path}")
 
